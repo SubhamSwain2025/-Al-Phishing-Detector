@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Al Phishing Detector</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap');
+
+    body {
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #e0e6f0;
+      font-family: 'Montserrat', sans-serif;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      text-align: center;
+      letter-spacing: 1.5px;
+      font-size: 2.8rem;
+      color: #f0a500;
+      text-shadow: 0 0 10px #f0a500aa;
+    }
+
+    p.subtitle {
+      font-weight: 400;
+      font-size: 1.1rem;
+      margin-top: 0;
+      margin-bottom: 2rem;
+      color: #bbc7d1;
+      max-width: 480px;
+      text-align: center;
+    }
+
+    textarea {
+      width: 100%;
+      max-width: 720px;
+      height: 220px;
+      padding: 1rem;
+      font-size: 1rem;
+      border-radius: 10px;
+      border: none;
+      resize: vertical;
+      box-shadow: 0 0 15px #f0a500aa;
+      background-color: #1a2933;
+      color: #e0e6f0;
+      font-family: 'Montserrat', sans-serif;
+      outline: none;
+      transition: box-shadow 0.3s ease;
+    }
+
+    textarea:focus {
+      box-shadow: 0 0 20px #f0a500cc;
+    }
+
+    button {
+      margin-top: 1.5rem;
+      background-color: #f0a500;
+      border: none;
+      color: #1a202c;
+      font-weight: 700;
+      font-size: 1.2rem;
+      padding: 0.8rem 2rem;
+      border-radius: 30px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      box-shadow: 0 0 15px #f0a500bb;
+    }
+
+    button:hover {
+      background-color: #d18e00;
+      box-shadow: 0 0 25px #d18e00cc;
+    }
+
+    #result {
+      margin-top: 2rem;
+      max-width: 720px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+      box-shadow: 0 0 20px #f0a50088;
+      line-height: 1.5;
+      font-size: 1.1rem;
+    }
+
+    .score {
+      font-weight: 700;
+      font-size: 1.3rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .safe {
+      color: #4caf50;
+    }
+
+    .warning {
+      color: #f39c12;
+    }
+
+    .danger {
+      color: #e74c3c;
+    }
+
+    ul {
+      margin: 0.5rem 0 0 1.2rem;
+    }
+
+    .footer {
+      margin-top: auto;
+      color: #8899aa;
+      font-size: 0.9rem;
+      user-select: none;
+      text-align: center;
+      padding: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Al Phishing Detector</h1>
+  <p class="subtitle">Analyze email content to identify possible phishing attempts involving harmful links or files.</p>
+  <textarea id="emailContent" placeholder="Paste or type the email content here..."></textarea>
+  <button id="analyzeBtn">Analyze Email</button>
+
+  <div id="result" aria-live="polite"></div>
+
+  <div class="footer">Powered by your Al Phishing Detector &copy; 2024</div>
+
+  <script>
+    (() => {
+      const analyzeBtn = document.getElementById('analyzeBtn');
+      const emailContentEl = document.getElementById('emailContent');
+      const resultEl = document.getElementById('result');
+
+      // Suspicious keywords often used in phishing emails
+      const phishingKeywords = [
+        'urgent', 'immediately', 'account suspended', 'verify your account', 'password expired',
+        'login now', 'update your information', 'confirm your identity', 'security alert',
+        'banking alert', 'click below', 'limited time', 'unauthorized', 'transfer funds',
+        'wire transfer', 'winner', 'congratulations', 'free gift', 'risk-free', 'act now',
+        'invoice attached', 'download attached file', 'attachment included', 'open immediately',
+        'login details', 'reset your password', 'social security number', 'sensitive information'
+      ];
+
+      // Suspicious file extensions often used for malware
+      const suspiciousFileExtensions = [
+        '.exe', '.scr', '.pif', '.bat', '.cmd',
+        '.js', '.vbs', '.jse', '.wsf', '.cpl',
+        '.msc', '.jar', '.msi', '.msp', '.gadget',
+        '.inf', '.reg', '.dll', '.sys', '.com'
+      ];
+
+      // Regex to capture URLs
+      const urlRegex = /https?:\/\/[^\s/$.?#].[^\s]*/gi;
+
+      // Regex to capture file names (simple detect filenames with extensions)
+      const fileRegex = /[\w,\s-]+\.[A-Za-z]{2,4}/g;
+
+      // Regex to match IP address in URL (common phishing sign)
+      const ipUrlRegex = /https?:\/\/(\d{1,3}\.){3}\d{1,3}([\/\?\#]|$)/gi;
+
+      // Function to check for suspicious URLs (with IP or phishing keywords in domain)
+      function findSuspiciousUrls(text) {
+        let urls = text.match(urlRegex) || [];
+        let suspiciousUrls = [];
+
+        urls.forEach(url => {
+          // Check if URL contains IP address
+          if (ipUrlRegex.test(url)) {
+            suspiciousUrls.push({ url, reason: 'URL contains IP address instead of domain (suspicious)' });
+            return;
+          }
+          // Check if URL contains suspicious domain words
+          if (/free|login|secure|account|update|verify|bank|confirm|payment/i.test(url)) {
+            suspiciousUrls.push({ url, reason: 'URL contains suspicious keywords in domain or path' });
+            return;
+          }
+        });
+
+        return suspiciousUrls;
+      }
+
+      // Function to find suspicious file mentions
+      function findSuspiciousFiles(text) {
+        let files = text.match(fileRegex) || [];
+        let suspiciousFiles = [];
+
+        files.forEach(file => {
+          for (let ext of suspiciousFileExtensions) {
+            if (file.toLowerCase().endsWith(ext)) {
+              suspiciousFiles.push({ file, reason: `File with suspicious extension: ${ext}` });
+              break;
+            }
+          }
+        });
+
+        return suspiciousFiles;
+      }
+
+      // Function to find phishing-related keywords
+      function findPhishingKeywords(text) {
+        let foundKeywords = [];
+        let lowerText = text.toLowerCase();
+
+        phishingKeywords.forEach(keyword => {
+          if (lowerText.includes(keyword)) {
+            foundKeywords.push(keyword);
+          }
+        });
+
+        return foundKeywords;
+      }
+
+      // Main analyze function
+      function analyzeEmail() {
+        const text = emailContentEl.value.trim();
+
+        if (!text) {
+          resultEl.innerHTML = '<p class="warning">Please enter the email content to analyze.</p>';
+          return;
+        }
+
+        // Analyze parts
+        const suspiciousUrls = findSuspiciousUrls(text);
+        const suspiciousFiles = findSuspiciousFiles(text);
+        const phishingWords = findPhishingKeywords(text);
+
+        // Score calculation (simple heuristic)
+        let score = 0;
+        if (suspiciousUrls.length > 0) score += 3;
+        if (suspiciousFiles.length > 0) score += 3;
+        if (phishingWords.length > 0) score += phishingWords.length;
+
+        // Cap score to max 10
+        if (score > 10) score = 10;
+
+        // Describe results
+        let riskLevel = { level: 'Safe', colorClass: 'safe', description: 'No significant signs of phishing detected.' };
+
+        if (score >= 7) {
+          riskLevel = { level: 'Danger', colorClass: 'danger', description: 'High likelihood of phishing detected! Be cautious.' };
+        } else if (score >= 3) {
+          riskLevel = { level: 'Warning', colorClass: 'warning', description: 'Possible phishing signs detected. Review carefully.' };
+        }
+
+        // Build detailed report
+        let reportHtml = `<div class="score ${riskLevel.colorClass}">Risk Level: ${riskLevel.level} (Score: ${score}/10)</div>`;
+        reportHtml += `<p>${riskLevel.description}</p>`;
+
+        if (suspiciousUrls.length > 0) {
+          reportHtml += `<p><strong>Suspicious URLs found:</strong></p><ul>`;
+          suspiciousUrls.forEach(u => {
+            reportHtml += `<li><code>${u.url}</code> - ${u.reason}</li>`;
+          });
+          reportHtml += `</ul>`;
+        }
+
+        if (suspiciousFiles.length > 0) {
+          reportHtml += `<p><strong>Suspicious file mentions found:</strong></p><ul>`;
+          suspiciousFiles.forEach(f => {
+            reportHtml += `<li><code>${f.file}</code> - ${f.reason}</li>`;
+          });
+          reportHtml += `</ul>`;
+        }
+
+        if (phishingWords.length > 0) {
+          reportHtml += `<p><strong>Phishing-related keywords detected:</strong></p><ul>`;
+          phishingWords.forEach(w => {
+            reportHtml += `<li>${w}</li>`;
+          });
+          reportHtml += `</ul>`;
+        }
+
+        resultEl.innerHTML = reportHtml;
+      }
+
+      analyzeBtn.addEventListener('click', analyzeEmail);
+      emailContentEl.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          analyzeEmail();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
+
